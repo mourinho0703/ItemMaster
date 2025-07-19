@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ItemMaster - 아이템 및 BOM 관리 시스템
 
 Django REST Framework 백엔드와 React 프론트엔드로 구성된 아이템 및 BOM(자재 명세서) 관리 시스템입니다.
@@ -106,3 +107,6 @@ npm run dev
 ## 라이센스
 
 MIT License
+=======
+# ItemMaster
+>>>>>>> 1f94214a6fcdcb1e480fae8341587bb24b1cfad7
