@@ -78,6 +78,7 @@ export const ItemRegistrationHistory: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const [historyData, setHistoryData] = useState<ItemRequest[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [selectedRequest, setSelectedRequest] = useState<ItemRequest | null>(null)
   const [allRequestItems, setAllRequestItems] = useState<ItemRequest[]>([])
   const [bomData, setBomData] = useState<BomData[]>([])
@@ -136,7 +137,12 @@ export const ItemRegistrationHistory: React.FC = () => {
   }, [historyData])
 
   useEffect(() => {
-    fetchHistory()
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      setCurrentUserEmail(session?.user?.email || null)
+      await fetchHistory()
+    }
+    init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setCurrentUserEmail(session?.user?.email || null)
@@ -159,6 +165,7 @@ export const ItemRegistrationHistory: React.FC = () => {
 
   const fetchHistory = async () => {
     setIsLoading(true)
+    setFetchError(null)
     try {
       const allData: ItemRequest[] = []
       let from = 0
@@ -166,13 +173,13 @@ export const ItemRegistrationHistory: React.FC = () => {
       let hasMore = true
 
       while (hasMore) {
-        const { data, error } = await supabase.from('tblItemregRequest')
-        .select('*')
-        .order('created_at', { ascending: false })
+        const { data, error } = await supabase.from('MG_tblItemregRequest')
+          .select('*')
+          .order('created_at', { ascending: false })
           .range(from, from + pageSize - 1)
-      
-      if (error) throw error
-        
+
+        if (error) throw error
+
         if (data && data.length > 0) {
           allData.push(...data)
           from += pageSize
@@ -183,8 +190,9 @@ export const ItemRegistrationHistory: React.FC = () => {
       }
 
       setHistoryData(allData)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch history:', err)
+      setFetchError(err?.message || String(err))
     } finally {
       setIsLoading(false)
     }
@@ -230,7 +238,7 @@ export const ItemRegistrationHistory: React.FC = () => {
 
     // 해당 requestno의 모든 품목 데이터 조회
     try {
-      const { data, error } = await supabase.from('tblItemregRequest')
+      const { data, error } = await supabase.from('MG_tblItemregRequest')
         .select('*')
         .eq('requestno', request.requestno)
         .order('id', { ascending: true })
@@ -245,7 +253,7 @@ export const ItemRegistrationHistory: React.FC = () => {
     // BOM 데이터 조회 (제품/반제품인 경우)
     if (request.type === '제품' || request.type === '반제품') {
       try {
-        const { data, error } = await supabase.from('itemrequest_bom')
+        const { data, error } = await supabase.from('MG_itemrequest_bom')
           .select('*')
           .eq('requestno', request.requestno)
           .order('id', { ascending: true })
@@ -321,7 +329,7 @@ export const ItemRegistrationHistory: React.FC = () => {
       }
 
       // tblItemregRequest 업데이트 - progress를 '등록 대기'로
-      const { error: itemError } = await supabase.from('tblItemregRequest')
+      const { error: itemError } = await supabase.from('MG_tblItemregRequest')
         .update({ progress: PROGRESS.PENDING_REG })
         .eq('requestno', selectedRequest.requestno)
 
@@ -350,7 +358,7 @@ export const ItemRegistrationHistory: React.FC = () => {
         return
       }
 
-      const { error: itemError } = await supabase.from('tblItemregRequest')
+      const { error: itemError } = await supabase.from('MG_tblItemregRequest')
         .update({ progress: PROGRESS.REJECTED })
         .eq('requestno', selectedRequest.requestno)
 
@@ -383,7 +391,7 @@ export const ItemRegistrationHistory: React.FC = () => {
       setIsErpLoading(true)
 
       // DB 상태를 "ERP 등록 중"으로 먼저 변경
-      const { error: regError } = await supabase.from('tblItemregRequest')
+      const { error: regError } = await supabase.from('MG_tblItemregRequest')
         .update({ progress: PROGRESS.REGISTERING })
         .eq('requestno', selectedRequest.requestno)
 
@@ -458,7 +466,7 @@ export const ItemRegistrationHistory: React.FC = () => {
           : `ERP 등록 실패: ${paErr?.message || paErr}`
 
         alert(errMsg)
-        await supabase.from('tblItemregRequest')
+        await supabase.from('MG_tblItemregRequest')
           .update({ progress: PROGRESS.PENDING_REG })
           .eq('requestno', selectedRequest.requestno)
         setSelectedRequest({ ...selectedRequest, progress: PROGRESS.PENDING_REG })
@@ -468,7 +476,7 @@ export const ItemRegistrationHistory: React.FC = () => {
       }
 
       // 데스크탑 흐름 완료 → DB "등록 완료"로 변경
-      const { error } = await supabase.from('tblItemregRequest')
+      const { error } = await supabase.from('MG_tblItemregRequest')
         .update({ progress: PROGRESS.COMPLETED })
         .eq('requestno', selectedRequest.requestno)
 
@@ -501,7 +509,7 @@ export const ItemRegistrationHistory: React.FC = () => {
 
       // BOM 먼저 삭제 (FK 제약 있을 수 있음)
       if (selectedRequest.type === '제품' || selectedRequest.type === '반제품') {
-        const { error: bomError } = await supabase.from('itemrequest_bom')
+        const { error: bomError } = await supabase.from('MG_itemrequest_bom')
           .delete()
           .eq('requestno', selectedRequest.requestno)
         
@@ -510,7 +518,7 @@ export const ItemRegistrationHistory: React.FC = () => {
         }
       }
 
-      const { error: itemError } = await supabase.from('tblItemregRequest')
+      const { error: itemError } = await supabase.from('MG_tblItemregRequest')
         .delete()
         .eq('requestno', selectedRequest.requestno)
 
@@ -587,6 +595,16 @@ export const ItemRegistrationHistory: React.FC = () => {
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                       로딩 중...
+                    </TableCell>
+                  </TableRow>
+                ) : fetchError ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      <div className="text-red-500 font-medium mb-2">데이터 조회 실패</div>
+                      <div className="text-sm text-red-400">{fetchError}</div>
+                      <Button variant="outline" size="sm" className="mt-3" onClick={fetchHistory}>
+                        다시 시도
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ) : uniqueHistoryData.length === 0 ? (

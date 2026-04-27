@@ -1,18 +1,15 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Layout } from "./components/Layout";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ItemRegistration } from "./pages/ItemRegistration";
-import { ProductRegistration } from "./pages/ProductRegistration";
-import { SpecificationSelection } from "./pages/SpecificationSelection";
-import { BomRegistrationPage } from "./pages/BomRegistrationPage";
-import { BomRegistration } from "./pages/BomRegistration";
-import { BomValidation } from "./pages/BomValidation";
-import { About } from "./pages/About";
+import ItemRegistrationHistory from "./pages/ItemRegistrationHistory";
 import NotFound from "./pages/NotFound";
+import BomEdit from "./pages/BomEdit";
+import BomHistory from "./pages/BomHistory";
+import { Login } from "./pages/Login";
 
 const queryClient = new QueryClient();
 
@@ -22,19 +19,23 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<ItemRegistration />} />
-            <Route path="/items" element={<ItemRegistration />} />
-            <Route path="/items/product" element={<ProductRegistration />} />
-            <Route path="/items/specification" element={<SpecificationSelection />} />
-            <Route path="/items/bom-registration" element={<BomRegistrationPage />} />
-            <Route path="/bom" element={<BomRegistration />} />
-            <Route path="/validation" element={<BomValidation />} />
-            <Route path="/about" element={<About />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Layout>
+        <Routes>
+          {/* 공개 라우트 (로그인 불필요) */}
+          <Route path="/login" element={<Login />} />
+
+          {/* 보호된 라우트 (로그인 필요) */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/" element={<Navigate to="/items/request" replace />} />
+            <Route path="/items" element={<Navigate to="/items/request" replace />} />
+            <Route path="/items/request" element={<ItemRegistration />} />
+            <Route path="/items/history" element={<ItemRegistrationHistory />} />
+            <Route path="/bom" element={<Navigate to="/bom/request" replace />} />
+            <Route path="/bom/request" element={<BomEdit />} />
+            <Route path="/bom/history" element={<BomHistory />} />
+          </Route>
+
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

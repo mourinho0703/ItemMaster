@@ -58,6 +58,7 @@ export const BomHistory: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const [historyData, setHistoryData] = useState<BomModifyRequest[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [selectedRequest, setSelectedRequest] = useState<BomModifyRequest | null>(null)
   const [allRequestData, setAllRequestData] = useState<BomModifyRequest[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -111,7 +112,12 @@ export const BomHistory: React.FC = () => {
   }, [historyData])
 
   useEffect(() => {
-    fetchHistory()
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      setCurrentUserEmail(session?.user?.email || null)
+      await fetchHistory()
+    }
+    init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setCurrentUserEmail(session?.user?.email || null)
@@ -134,21 +140,21 @@ export const BomHistory: React.FC = () => {
 
   const fetchHistory = async () => {
     setIsLoading(true)
+    setFetchError(null)
     try {
-      // 페이지네이션으로 모든 데이터 가져오기
       const allData: BomModifyRequest[] = []
       let from = 0
       const pageSize = 1000
       let hasMore = true
 
       while (hasMore) {
-        const { data, error } = await supabase.from('bommodifyrequest')
+        const { data, error } = await supabase.from('MG_bommodifyrequest')
           .select('*')
           .order('created_at', { ascending: false })
           .range(from, from + pageSize - 1)
-        
+
         if (error) throw error
-        
+
         if (data && data.length > 0) {
           allData.push(...data)
           from += pageSize
@@ -159,8 +165,9 @@ export const BomHistory: React.FC = () => {
       }
 
       setHistoryData(allData)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch history:', err)
+      setFetchError(err?.message || String(err))
     } finally {
       setIsLoading(false)
     }
@@ -209,7 +216,7 @@ export const BomHistory: React.FC = () => {
       let hasMore = true
 
       while (hasMore) {
-        const { data, error } = await supabase.from('bommodifyrequest')
+        const { data, error } = await supabase.from('MG_bommodifyrequest')
           .select('*')
           .eq('requestno', request.requestno)
           .order('id', { ascending: true })
@@ -244,7 +251,7 @@ export const BomHistory: React.FC = () => {
       let hasMore = true
 
       while (hasMore) {
-        const { data, error } = await supabase.from('bommodifyrequest')
+        const { data, error } = await supabase.from('MG_bommodifyrequest')
           .select('*')
           .eq('requestno', selectedRequest.requestno)
           .order('id', { ascending: true })
@@ -329,7 +336,7 @@ export const BomHistory: React.FC = () => {
         return
       }
 
-      const { error } = await supabase.from('bommodifyrequest')
+      const { error } = await supabase.from('MG_bommodifyrequest')
         .update({ progress: PROGRESS.PENDING_REG })
         .eq('requestno', selectedRequest.requestno)
 
@@ -358,7 +365,7 @@ export const BomHistory: React.FC = () => {
         return
       }
 
-      const { error } = await supabase.from('bommodifyrequest')
+      const { error } = await supabase.from('MG_bommodifyrequest')
         .update({ progress: PROGRESS.REJECTED })
         .eq('requestno', selectedRequest.requestno)
 
@@ -387,7 +394,7 @@ export const BomHistory: React.FC = () => {
         return
       }
 
-      const { error } = await supabase.from('bommodifyrequest')
+      const { error } = await supabase.from('MG_bommodifyrequest')
         .delete()
         .eq('requestno', selectedRequest.requestno)
 
@@ -462,7 +469,7 @@ export const BomHistory: React.FC = () => {
       setIsErpLoading(true)
 
       // DB 상태를 "ERP 등록 중"으로 먼저 변경
-      const { error: regError } = await supabase.from('bommodifyrequest')
+      const { error: regError } = await supabase.from('MG_bommodifyrequest')
         .update({ progress: PROGRESS.REGISTERING })
         .eq('requestno', selectedRequest.requestno)
 
@@ -512,7 +519,7 @@ export const BomHistory: React.FC = () => {
           : `ERP 등록 실패: ${paErr?.message || paErr}`
 
         alert(errMsg)
-        await supabase.from('bommodifyrequest')
+        await supabase.from('MG_bommodifyrequest')
           .update({ progress: PROGRESS.PENDING_REG })
           .eq('requestno', selectedRequest.requestno)
         setSelectedRequest({ ...selectedRequest, progress: PROGRESS.PENDING_REG })
@@ -522,7 +529,7 @@ export const BomHistory: React.FC = () => {
       }
 
       // 데스크탑 흐름 완료 → DB "수정 완료"로 변경
-      const { error } = await supabase.from('bommodifyrequest')
+      const { error } = await supabase.from('MG_bommodifyrequest')
         .update({ progress: PROGRESS.COMPLETED })
         .eq('requestno', selectedRequest.requestno)
 
@@ -584,6 +591,16 @@ export const BomHistory: React.FC = () => {
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                       로딩 중...
+                    </TableCell>
+                  </TableRow>
+                ) : fetchError ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      <div className="text-red-500 font-medium mb-2">데이터 조회 실패</div>
+                      <div className="text-sm text-red-400">{fetchError}</div>
+                      <Button variant="outline" size="sm" className="mt-3" onClick={fetchHistory}>
+                        다시 시도
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ) : uniqueHistoryData.length === 0 ? (
